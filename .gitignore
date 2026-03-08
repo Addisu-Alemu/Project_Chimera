@@ -1,0 +1,24 @@
+# Build output
+target/
+*.jar
+*.war
+*.ear
+
+# Logs
+logs/
+*.log
+
+# IDE / editor
+.idea/
+*.iml
+.vscode/
+.cursor/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Maven wrapper (if not committed intentionally)
+.mvn/timing.properties
