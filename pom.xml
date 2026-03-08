@@ -15,6 +15,7 @@
         <module>trend-watcher</module>
         <module>content-creator</module>
         <module>act-service</module>
+        <module>learn-service</module>
     </modules>
 
     <properties>
