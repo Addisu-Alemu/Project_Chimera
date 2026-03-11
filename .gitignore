@@ -22,3 +22,8 @@ Thumbs.db
 
 # Maven wrapper (if not committed intentionally)
 .mvn/timing.properties
+
+# Environment / secrets — NEVER commit
+.env
+.env.*
+!.env.example

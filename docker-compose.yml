@@ -1,0 +1,119 @@
+version: "3.7"
+
+services:
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: chimera
+      POSTGRES_USER: chimera
+      POSTGRES_PASSWORD: chimera_dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chimera -d chimera"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  trend-watcher:
+    build:
+      context: .
+      dockerfile: trend-watcher/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      TIKTOK_ACCESS_TOKEN: REPLACE_ME
+      INSTAGRAM_ACCESS_TOKEN: REPLACE_ME
+      X_BEARER_TOKEN: REPLACE_ME
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  content-creator:
+    build:
+      context: .
+      dockerfile: content-creator/Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      TREND_WATCHER_URL: http://trend-watcher:8081
+      LEARN_SERVICE_URL: http://learn-service:8084
+    depends_on:
+      - trend-watcher
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8082/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  act-service:
+    build:
+      context: .
+      dockerfile: act-service/Dockerfile
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/chimera
+      SPRING_DATASOURCE_USERNAME: chimera
+      SPRING_DATASOURCE_PASSWORD: chimera_dev
+      CONTENT_CREATOR_URL: http://content-creator:8082
+      LEARN_SERVICE_URL: http://learn-service:8084
+      ALERT_WEBHOOK_URL: http://localhost:9999/alert
+    depends_on:
+      - postgres
+      - content-creator
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8083/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  learn-service:
+    build:
+      context: .
+      dockerfile: learn-service/Dockerfile
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/chimera
+      SPRING_DATASOURCE_USERNAME: chimera
+      SPRING_DATASOURCE_PASSWORD: chimera_dev
+      TREND_WATCHER_URL: http://trend-watcher:8081
+      CONTENT_CREATOR_URL: http://content-creator:8082
+      ALERT_WEBHOOK_URL: http://localhost:9999/alert
+    depends_on:
+      - postgres
+      - act-service
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8084/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres_data:

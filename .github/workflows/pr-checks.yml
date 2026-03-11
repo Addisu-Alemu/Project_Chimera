@@ -1,0 +1,32 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-unit-test:
+    name: Build & Unit Tests — ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [trend-watcher, content-creator, act-service, learn-service]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build parent POM
+        run: mvn install -N -DskipTests
+
+      - name: Build & unit test ${{ matrix.service }}
+        run: |
+          cd ${{ matrix.service }}
+          mvn verify -Dgroups=unit

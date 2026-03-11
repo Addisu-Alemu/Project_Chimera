@@ -1,11 +1,8 @@
 package com.chimera.actservice.model;
 
-/** Outcome of a content publishing attempt. */
 public enum PostStatus {
-    PUBLISHED,
+    SUCCESS,
     RETRYING,
-    FAILED,
-
-    /** Platform API is down — publishing paused, state logged, will resume on recovery. */
-    PAUSED
+    HELD_FOR_HUMAN,
+    FAILED
 }

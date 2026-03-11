@@ -1,22 +1,14 @@
 package com.chimera.trendwatcher.fetcher;
 
 import com.chimera.trendwatcher.model.Platform;
-import com.chimera.trendwatcher.model.RawContent;
-import com.chimera.trendwatcher.model.TimeRange;
+import com.chimera.trendwatcher.model.TrendTopic;
 
 import java.util.List;
+import java.util.UUID;
 
-/**
- * Contract for all platform-specific content fetchers.
- *
- * Implementations must:
- * - Try the primary endpoint first
- * - Fall back to the backup endpoint if the primary is unavailable
- * - Throw {@link FetchException} only when both endpoints fail
- */
 public interface SocialMediaFetcher {
 
     Platform platform();
 
-    List<RawContent> fetch(TimeRange range) throws FetchException;
+    List<TrendTopic> fetch(UUID agentId);
 }

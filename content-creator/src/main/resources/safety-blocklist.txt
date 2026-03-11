@@ -1,0 +1,17 @@
+# Project Chimera — Content Safety Blocklist (content-creator)
+# One keyword or phrase per line (case-insensitive).
+# Lines starting with # are comments.
+
+violence
+hate speech
+self-harm
+terrorism
+child abuse
+explicit content
+gore
+harassment
+abuse
+extremism
+radicalization
+misinformation
+fake news

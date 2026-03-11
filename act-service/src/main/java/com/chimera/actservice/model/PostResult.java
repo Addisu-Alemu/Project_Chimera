@@ -1,47 +1,73 @@
 package com.chimera.actservice.model;
 
-import com.chimera.trendwatcher.model.Platform;
+import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Outcome of a single content publishing attempt.
- *
- * Rule: all posts must be traceable to the source spec.
- * {@code contentPieceId} links every result back to the originating ContentPiece
- * produced by the CREATE service.
- *
- * @param id              Unique result identifier
- * @param contentPieceId  ID of the ContentPiece that was published (traceable to CREATE spec)
- * @param platform        Target platform for this attempt
- * @param status          Outcome of the publish operation
- * @param platformPostId  Platform-assigned post ID (null if not published successfully)
- * @param postedAt        UTC timestamp of the successful post (null if failed/paused)
- * @param attemptCount    Number of attempts made before this outcome
- */
-public record PostResult(
-        String id,
-        String contentPieceId,
-        Platform platform,
-        PostStatus status,
-        String platformPostId,
-        Instant postedAt,
-        int attemptCount
-) {
-    public static PostResult published(String contentPieceId, Platform platform,
-                                       String platformPostId, int attempts) {
-        return new PostResult(UUID.randomUUID().toString(), contentPieceId, platform,
-                PostStatus.PUBLISHED, platformPostId, Instant.now(), attempts);
+@Entity
+@Table(name = "post_results")
+@EntityListeners(AuditingEntityListener.class)
+public class PostResult {
+
+    @Id
+    private UUID id;
+
+    @Column(name = "agent_id", nullable = false)
+    private UUID agentId;
+
+    @Column(name = "content_bundle_id", nullable = false)
+    private UUID contentBundleId;
+
+    @Column(name = "platform", nullable = false)
+    private String platform;
+
+    @Column(name = "published_at")
+    private Instant publishedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private PostStatus status;
+
+    @Column(name = "attempt_count", nullable = false)
+    private int attemptCount;
+
+    @Column(name = "failure_reason")
+    private String failureReason;
+
+    @Column(name = "platform_post_id")
+    private String platformPostId;
+
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    protected PostResult() {}
+
+    public PostResult(UUID id, UUID agentId, UUID contentBundleId, String platform,
+                      Instant publishedAt, PostStatus status, int attemptCount,
+                      String failureReason, String platformPostId) {
+        this.id = id;
+        this.agentId = agentId;
+        this.contentBundleId = contentBundleId;
+        this.platform = platform;
+        this.publishedAt = publishedAt;
+        this.status = status;
+        this.attemptCount = attemptCount;
+        this.failureReason = failureReason;
+        this.platformPostId = platformPostId;
     }
 
-    public static PostResult failed(String contentPieceId, Platform platform, int attempts) {
-        return new PostResult(UUID.randomUUID().toString(), contentPieceId, platform,
-                PostStatus.FAILED, null, null, attempts);
-    }
-
-    public static PostResult paused(String contentPieceId, Platform platform) {
-        return new PostResult(UUID.randomUUID().toString(), contentPieceId, platform,
-                PostStatus.PAUSED, null, null, 0);
-    }
+    public UUID getId() { return id; }
+    public UUID getAgentId() { return agentId; }
+    public UUID getContentBundleId() { return contentBundleId; }
+    public String getPlatform() { return platform; }
+    public Instant getPublishedAt() { return publishedAt; }
+    public PostStatus getStatus() { return status; }
+    public int getAttemptCount() { return attemptCount; }
+    public String getFailureReason() { return failureReason; }
+    public String getPlatformPostId() { return platformPostId; }
+    public Instant getCreatedAt() { return createdAt; }
 }

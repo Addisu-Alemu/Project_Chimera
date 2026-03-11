@@ -1,43 +1,51 @@
 package com.chimera.learnservice.model;
 
-import com.chimera.contentcreator.model.ContentType;
-import com.chimera.trendwatcher.model.Platform;
+import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.Instant;
+import java.util.UUID;
 
-/**
- * Raw engagement signal ingested from the ACT service.
- *
- * Built by {@link com.chimera.learnservice.impl.ChimeraLearnService} from:
- * - {@link com.chimera.actservice.model.AudienceInteraction} + Reply pairs
- * - {@link com.chimera.actservice.model.PostResult} + interaction lists
- *
- * Validated by {@link com.chimera.learnservice.signal.SignalValidator} before processing.
- *
- * @param id              Unique signal identifier
- * @param contentPieceId  ID of the ContentPiece this signal relates to (traceability)
- * @param topic           Trending topic the content addressed
- * @param platform        Platform where the engagement occurred
- * @param contentType     Format of the content (POST, CAPTION, VIDEO_DESCRIPTION)
- * @param likes           Number of likes / reactions in this signal window
- * @param shares          Number of shares / reposts
- * @param comments        Number of comments / replies
- * @param views           Number of views / impressions
- * @param signalType      Origin of the signal
- * @param transactionPositive For TRANSACTION_OUTCOME signals: whether the outcome was positive
- * @param receivedAt      UTC timestamp when LEARN received this signal
- */
-public record EngagementSignal(
-        String id,
-        String contentPieceId,
-        String topic,
-        Platform platform,
-        ContentType contentType,
-        long likes,
-        long shares,
-        long comments,
-        long views,
-        SignalType signalType,
-        boolean transactionPositive,
-        Instant receivedAt
-) {}
+@Entity
+@Table(name = "engagement_signals")
+@EntityListeners(AuditingEntityListener.class)
+public class EngagementSignal {
+
+    @Id
+    private UUID id;
+
+    @Column(name = "agent_id", nullable = false)
+    private UUID agentId;
+
+    @Column(name = "post_result_id", nullable = false)
+    private UUID postResultId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "signal_type", nullable = false)
+    private SignalType signalType;
+
+    @Column(name = "value", nullable = false)
+    private long value;
+
+    @CreatedDate
+    @Column(name = "recorded_at", nullable = false, updatable = false)
+    private Instant recordedAt;
+
+    protected EngagementSignal() {}
+
+    public EngagementSignal(UUID id, UUID agentId, UUID postResultId, SignalType signalType, long value) {
+        this.id = id;
+        this.agentId = agentId;
+        this.postResultId = postResultId;
+        this.signalType = signalType;
+        this.value = value;
+    }
+
+    public UUID getId() { return id; }
+    public UUID getAgentId() { return agentId; }
+    public UUID getPostResultId() { return postResultId; }
+    public SignalType getSignalType() { return signalType; }
+    public long getValue() { return value; }
+    public Instant getRecordedAt() { return recordedAt; }
+}

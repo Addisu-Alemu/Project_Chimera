@@ -1,102 +1,75 @@
 package com.chimera.trendwatcher.service;
 
-import com.chimera.trendwatcher.model.RawContent;
-import com.chimera.trendwatcher.model.TimeRange;
-import com.chimera.trendwatcher.model.TopCategory;
+import com.chimera.trendwatcher.cache.TrendSignalStore;
+import com.chimera.trendwatcher.model.Platform;
 import com.chimera.trendwatcher.model.TrendReport;
-import com.chimera.trendwatcher.model.TrendingTopic;
+import com.chimera.trendwatcher.model.TrendSignal;
+import com.chimera.trendwatcher.model.TrendTopic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
-/**
- * Aggregates validated {@link RawContent} records into a {@link TrendReport}.
- *
- * Trending topics are derived from hashtags, ranked by aggregate share count.
- * Top categories are ranked by aggregate view count.
- */
+@Component
 public class TrendAggregator {
 
     private static final Logger log = LoggerFactory.getLogger(TrendAggregator.class);
 
-    private static final int TOP_TOPICS     = 20;
-    private static final int TOP_CATEGORIES = 10;
+    private final TrendSignalStore trendSignalStore;
 
-    /**
-     * Produces a {@link TrendReport} from a validated, filtered content list.
-     */
-    public TrendReport aggregate(List<RawContent> content, TimeRange range) {
-        log.info("Aggregating {} validated content items for range={}", content.size(), range);
+    public TrendAggregator(TrendSignalStore trendSignalStore) {
+        this.trendSignalStore = trendSignalStore;
+    }
 
-        List<TrendingTopic> topics      = buildTrendingTopics(content);
-        List<TopCategory>   categories  = buildTopCategories(content);
+    public TrendReport aggregate(UUID agentId, List<Platform> platforms, List<TrendTopic> filteredTopics) {
+        log.info("Aggregating {} filtered topics for agent={}", filteredTopics.size(), agentId);
 
-        TrendReport report = new TrendReport(topics, categories, range, Instant.now());
-        log.info("Report ready: {} trending topics, {} top categories", topics.size(), categories.size());
+        TrendSignal signal = trendSignalStore.getLatest(agentId);
+        List<TrendTopic> weighted = applySignalWeights(filteredTopics, signal);
+
+        Map<String, Double> categoryWeights = weighted.stream()
+                .collect(Collectors.toMap(
+                        TrendTopic::name,
+                        TrendTopic::engagementScore,
+                        Double::max
+                ));
+
+        TrendReport report = new TrendReport(
+                UUID.randomUUID(),
+                agentId,
+                Instant.now(),
+                platforms,
+                weighted,
+                categoryWeights
+        );
+
+        log.info("TrendReport built: id={} topics={}", report.id(), weighted.size());
         return report;
     }
 
-    // ---------------------------------------------------------------------------
-    // Private — topic aggregation
-    // ---------------------------------------------------------------------------
-
-    private List<TrendingTopic> buildTrendingTopics(List<RawContent> content) {
-        // Map: hashtag → { totalShares, platforms set }
-        record TopicAcc(long shares, java.util.Set<com.chimera.trendwatcher.model.Platform> platforms) {}
-
-        Map<String, long[]> sharesByTag   = new LinkedHashMap<>();
-        Map<String, java.util.Set<com.chimera.trendwatcher.model.Platform>> platformsByTag =
-                new LinkedHashMap<>();
-
-        for (RawContent c : content) {
-            for (String tag : c.hashtags()) {
-                String key = tag.toLowerCase().startsWith("#") ? tag.toLowerCase() : "#" + tag.toLowerCase();
-                sharesByTag.merge(key, new long[]{c.shareCount()}, (a, b) -> new long[]{a[0] + b[0]});
-                platformsByTag.computeIfAbsent(key, k -> new java.util.HashSet<>()).add(c.platform());
-            }
+    private List<TrendTopic> applySignalWeights(List<TrendTopic> topics, TrendSignal signal) {
+        if (signal == null || signal.categoryWeights() == null) {
+            return topics;
         }
 
-        return sharesByTag.entrySet().stream()
-                .sorted(Map.Entry.<String, long[]>comparingByValue(
-                        Comparator.comparingLong(a -> -a[0])))
-                .limit(TOP_TOPICS)
-                .map(e -> new TrendingTopic(
-                        e.getKey(),
-                        e.getValue()[0],
-                        new ArrayList<>(platformsByTag.get(e.getKey()))))
+        Map<String, Double> weights = signal.categoryWeights();
+        List<TrendTopic> reweighted = topics.stream()
+                .map(t -> {
+                    double multiplier = weights.getOrDefault(t.name(), 1.0);
+                    double newScore = Math.min(t.engagementScore() * multiplier, 1.0);
+                    return new TrendTopic(t.name(), t.hashtags(), newScore, t.safetyPassed());
+                })
+                .sorted(Comparator.comparingDouble(TrendTopic::engagementScore).reversed())
+                .limit(20)
                 .collect(Collectors.toList());
-    }
 
-    // ---------------------------------------------------------------------------
-    // Private — category aggregation
-    // ---------------------------------------------------------------------------
-
-    private List<TopCategory> buildTopCategories(List<RawContent> content) {
-        record CategoryStats(long totalViews, long count) {}
-
-        Map<String, long[]> statsByCategory = new LinkedHashMap<>(); // [totalViews, count]
-
-        for (RawContent c : content) {
-            String cat = (c.category() == null || c.category().isBlank()) ? "Uncategorized" : c.category();
-            statsByCategory.merge(
-                    cat,
-                    new long[]{c.viewCount(), 1},
-                    (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]}
-            );
-        }
-
-        return statsByCategory.entrySet().stream()
-                .sorted(Map.Entry.<String, long[]>comparingByValue(
-                        Comparator.comparingLong(a -> -a[0])))
-                .limit(TOP_CATEGORIES)
-                .map(e -> new TopCategory(e.getKey(), e.getValue()[0], e.getValue()[1]))
-                .collect(Collectors.toList());
+        log.info("Applied TrendSignal weights from agentId={}: re-ranked {} topics", signal.agentId(), reweighted.size());
+        return reweighted;
     }
 }
