@@ -12,7 +12,7 @@ logs/
 .idea/
 *.iml
 .vscode/
-.cursor/
+*mcp.json
 *.swp
 *.swo
 
@@ -27,3 +27,11 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+

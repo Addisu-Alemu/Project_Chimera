@@ -1,0 +1,87 @@
+---
+description: Project Chimera — Agent Rules. Apply to ALL tasks in this repository.
+globs: ["**/*.java", "**/pom.xml", "**/application.yml", "**/docker-compose.yml", "**/*.sql", "**/Makefile"]
+alwaysApply: true
+---
+
+# Project Chimera — Agent Rules
+# Version: 1.0.0 | Ratified: 2026-03-11 | Authority: Lead Architect
+
+## 1. Spec Enforcement
+- NEVER write production code without a ratified spec in `specs/001-chimera-pipeline/`
+- Every commit MUST follow: `[SERVICE][SPEC-REF] Description`
+- Valid services: `PERCEIVE` | `CREATE` | `ACT` | `LEARN` | `INFRA` | `ALL`
+- Valid spec refs: `FR-001`–`FR-017` | `SC-001`–`SC-008` | `T001`–`T064`
+
+## 2. Service Boundaries — Single Responsibility
+Each service owns EXACTLY one pipeline stage. Never cross boundaries:
+- `trend-watcher` → owns TrendReport only
+- `content-creator` → owns ContentBundle only  
+- `act-service` → owns PostResult + Transaction only
+- `learn-service` → owns FeedbackReport + TrendSignal only
+
+Services communicate ONLY via HTTP JSON. No shared DB tables. No shared libraries.
+All contracts defined in `specs/001-chimera-pipeline/contracts/`
+
+## 3. Forbidden Actions — Hard Stops
+```
+FORBIDDEN-001: Commit secrets, API keys, or tokens to any file
+FORBIDDEN-002: Skip ContentSafetyFilter before CREATE → ACT handoff
+FORBIDDEN-003: Publish content without a valid non-null ContentBundle
+FORBIDDEN-004: Auto-approve any transaction above $500 USD
+FORBIDDEN-005: Swallow exceptions silently — every error MUST be logged
+FORBIDDEN-006: Access another service's database directly
+FORBIDDEN-007: DELETE or UPDATE any Transaction record (append-only)
+FORBIDDEN-008: Use TrendReport older than 24 hours as CREATE input
+FORBIDDEN-009: Dispatch FeedbackReport with confidenceScore < 0.6 without human review
+FORBIDDEN-010: Push directly to main — all changes via pull request
+```
+
+## 4. HITL Escalation Thresholds
+These thresholds are IMMUTABLE without architect sign-off:
+
+| Trigger | Threshold | Status | SLA |
+|---|---|---|---|
+| Financial transaction | > $500 USD | PENDING_APPROVAL | 30 min |
+| Post publish failures | ≥ 3 consecutive | HELD_FOR_HUMAN | 2 hours |
+| Confidence score | < 0.6 | HELD_PENDING_REVIEW | 4 hours |
+
+## 5. Java Standards
+- Java 21+ required — `spring.threads.virtual.enabled=true` on ALL services
+- All inter-service DTOs MUST be Java Records (immutable — no setters)
+- `@Version` column required on all shared-state entities (OCC)
+- Append-only entities: `Transaction`, `AuditLog`, `PostResult`
+- Virtual threads: `ExecutorService.newVirtualThreadPerTaskExecutor()`
+
+## 6. Error Logging Mandate
+Every caught exception MUST log:
+```java
+log.error("[{}][{}][{}] {} — {}", stage, agentId, operation, errorType, message);
+```
+Silent catch blocks = FORBIDDEN-005 violation.
+
+## 7. Testing Requirements
+- TDD: write test BEFORE implementation
+- Minimum 80% coverage — enforced by CI, blocks merge
+- Testcontainers required for integration tests (PostgreSQL 16 + Redis 7)
+- Required test per service: happy path, staleness rejection, HITL trigger, retry behavior
+
+## 8. Dev MCP vs Runtime Skills Separation
+- Dev MCP (`.cursor/mcp.json`): tooling for development session — Tenx analytics
+- Runtime Skills (`.chimera/skills/`): agent capabilities at runtime — fetch_trends, generate_content, publish_content, analyze_performance
+- NEVER mix dev tooling config with runtime skill definitions
+
+## 9. Security
+```
+SEC-001: No secrets in source code, Dockerfiles, YAML, or .env files
+SEC-002: All secrets via environment variables injected at runtime
+SEC-003: ALERT_WEBHOOK_URL must be set or service refuses to start
+SEC-004: ContentSafetyFilter runs in BOTH PERCEIVE and CREATE
+SEC-005: Trivy scan must pass (zero CRITICAL) before production deploy
+```
+
+## 10. Architect Sign-Off Required For
+1. Any change to HITL thresholds
+2. Any change to Transaction entity schema
+3. Any new inter-service dependency
+4. Any change to this rules file
